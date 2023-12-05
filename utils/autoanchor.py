@@ -25,7 +25,7 @@ def check_anchor_order(m):
         m.anchors[:] = m.anchors.flip(0)
 
 """
-计算默认锚框与数据集标签狂的宽高比值
+计算默认锚框与数据集标签的宽高比值
 标签的高款与锚框的比值
 如果bar小于98%，则根据k—means算法聚类新的锚框
 """

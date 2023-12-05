@@ -231,7 +231,7 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
         w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
 
     # Intersection area
-    # 通过几个边的大小计算交接的矩形
+    # 通过几个边的大小计算交接的矩形 clamp(0)保证括号内的值为非负
     inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
             (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
 

@@ -796,7 +796,7 @@ def non_max_suppression(prediction,
     """
 
     bs = prediction.shape[0]  # batch size
-    nc = prediction.shape[2] - 5  # number of classes
+    nc = prediction.shape[2] - 5  # number of classes 减去5是xyxy和conf5个参数
     xc = prediction[..., 4] > conf_thres  # candidates
 
     # Checks
@@ -814,7 +814,7 @@ def non_max_suppression(prediction,
 
     t = time.time()
     output = [torch.zeros((0, 6), device=prediction.device)] * bs
-    for xi, x in enumerate(prediction):  # image index, image inference
+    for xi, x in enumerate(prediction):  # 迭代每个图片 image index, image inference
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
         x = x[xc[xi]]  # confidence
@@ -859,7 +859,7 @@ def non_max_suppression(prediction,
         n = x.shape[0]  # number of boxes
         if not n:  # no boxes
             continue
-        elif n > max_nms:  # excess boxes
+        elif n > max_nms:  # excess boxes按照置信度降序进行排序， 选择最大的max_nms个数
             x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
 
         # Batched NMS

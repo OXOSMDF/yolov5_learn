@@ -108,8 +108,8 @@ class ComputeLoss:
         if g > 0:
             BCEcls, BCEobj = FocalLoss(BCEcls, g), FocalLoss(BCEobj, g)
 
-        m = de_parallel(model).model[-1]  # Detect() module
-        self.balance = {3: [4.0, 1.0, 0.4]}.get(m.nl, [4.0, 1.0, 0.25, 0.06, 0.02])  # P3-P7
+        m = de_parallel(model).model[-1]  # Detect() module 用于判断是否并行gpu 多gpu模式
+        self.balance = {3: [4.0, 1.0, 0.4]}.get(m.nl, [4.0, 1.0, 0.25, 0.06, 0.02])  # P3-P7 如果层数是3则使用前面的值
         self.ssi = list(m.stride).index(16) if autobalance else 0  # stride 16 index
         self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, 1.0, h, autobalance
         self.na = m.na  # number of anchors
@@ -128,7 +128,7 @@ class ComputeLoss:
 
         # Losses
         # 遍历每个预测的输出
-        for i, pi in enumerate(p):  # layer index, layer predictions
+        for i, pi in enumerate(p):  # layer index, layer predictions 包括每个pred的index和pred结果
             b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
             # 通过indices返回网格的输出
             tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=self.device)  # target obj
@@ -155,9 +155,11 @@ class ComputeLoss:
                 iou = iou.detach().clamp(0).type(tobj.dtype)
                 if self.sort_obj_iou:
                     j = iou.argsort()
+                    #按照iou进行排序
                     b, a, gj, gi, iou = b[j], a[j], gj[j], gi[j], iou[j]
                 if self.gr < 1:
                     iou = (1.0 - self.gr) + self.gr * iou
+                #这一行将调整后的交并比 iou 赋值给目标性张量 tobj 的相应位置。这样做的目的是使用交并比的信息作为目标性的权重，用于表示预测框的质量。
                 tobj[b, a, gj, gi] = iou  # iou ratio
 
                 # Classification
@@ -170,7 +172,7 @@ class ComputeLoss:
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
             # 计算obj loss
-            obji = self.BCEobj(pi[..., 4], tobj)
+            obji = self.BCEobj(pi[..., 4], tobj) #第五个元素索引为4 代表是否存在object
             lobj += obji * self.balance[i]  # obj loss
             if self.autobalance:
                 self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
@@ -188,7 +190,7 @@ class ComputeLoss:
     def build_targets(self, p, targets):
     # 用于获得在训练时计算的loss函数所需要的目标框，被认为是正样本
     # yolo_v5支持跨网络预测
-    # 对于任何一个bbox，三个输出预测特征图都有可能右先验框匹配
+    # 对于任何一个bbox，三个输出预测特征图都有可能有anchor box匹配
     # 该函数的输出的正样本框比传入的targets数目多
     # 具体处理流程:
     # 1.对于任何一层计算当前bbox和目前层anchor的匹配程度，不采用iou，而是shape比例
@@ -217,17 +219,17 @@ class ComputeLoss:
                 # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
             ],
             device=self.device).float() * g  # offsets
-        # 对于每个检测层进行处理
+        # 对于每个检测层进行处理nl number of layers
         for i in range(self.nl): # 三个尺度的预测特征图输出分支 
             anchors, shape = self.anchors[i], p[i].shape#当前分支的anchor大小（已经处于对应的stride）
-            # p是网格的输出
+            # p是网格的输出 gain的index为3, 4, 5, 6的元素应该为xywh
             gain[2:6] = torch.tensor(shape)[[3, 2, 3, 2]]  # xyxy gain
 
             # Match targets to anchors
             # 将标签框的xywh从基于0~1映射到基于特征图；targets的xywh本身是归一化尺度，故需要变成特征图尺度
-            t = targets * gain  # shape(3,n,7)
+            t = targets * gain  # shape(3,n,7) 使target的xywh转化成xyxy feature map尺度
             # 对每个输出层单独匹配
-            # 首先将target wh shape和anchor 的wh计算比例，如果比例过大，则说明匹配度不高，将该bbox过滤，在当前层认为是bg
+            # 首先将target wh shape和anchor 的wh计算比例，如果比例过大，则说明匹配度不高，将该bbox过滤，在当前层认为是bg nt num of targets
             if nt:
                 # Matches
                 # 预测的wh与anchor的wh做匹配，筛选掉比值大于hyp['anchor_t']的，从而更好地回归
@@ -246,7 +248,7 @@ class ComputeLoss:
                 t = t[j]  # filter ；注意过滤规则没有考虑xy，也就是当前bbox的wh是和所有anchor计算的
 
                 # Offsets
-                gxy = t[:, 2:4]  # grid xy ； label的中心点坐标
+                gxy = t[:, 2:4]  # grid xy ； label的中心点坐标 即3和4元素
                 # 得到中心点相对于当前特征图的坐标(M,2)
                 gxi = gain[[2, 3]] - gxy  # inverse
                 # 对于筛选后的bbox，计算其落在哪个网格内，同时找出邻近的网格，将这些网格都认为是负责预测该bbox的网格
